@@ -629,7 +629,7 @@ function renderCalView(){
   h+='</div><div class="cal calnames">';
   for(var b=0;b<first;b++)h+='<div class="d blank"></div>';
   d.forEach(function(day){var di=day.d,cls=dcls(day),ents=[];
-    STAFF.forEach(function(s){if(s.external)return;if(calLocFilter&&calLocFilter.indexOf(s.home)<0)return;if(calFilter&&calFilter.indexOf(s.id)<0)return;dutyParts(cellFor(s.id,di)).forEach(function(p){ents.push({s:s,c:p,r:dutyRank(p),t:startH(p.in)});});});
+    STAFF.forEach(function(s){if(s.external)return;if(calFilter&&calFilter.indexOf(s.id)<0)return;dutyParts(cellFor(s.id,di)).forEach(function(p){if(calLocFilter&&calLocFilter.indexOf(p.loc)<0)return;ents.push({s:s,c:p,r:dutyRank(p),t:startH(p.in)});});});
     ents.sort(function(a,b){return (a.r-b.r)||(a.t-b.t);});
     var chips=ents.map(function(e){var col=dutyColor(e.c),tc=textOn(col);return '<span class="nchip" style="background:'+col+';color:'+tc+'" title="'+esc(shortName(e.s.name)+' '+segLine(e.c,e.s.home))+'">'+esc(calChip(e.c,e.s))+'</span>';}).join('');
     if(!chips)chips='<span class="empt">休</span>';
