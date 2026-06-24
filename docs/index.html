@@ -277,7 +277,7 @@ function remoteJsonp(params,ok,fail,retry){
   function clean(){if(done)return;done=true;try{delete window[cb];}catch(e){window[cb]=null;}if(s.parentNode)s.parentNode.removeChild(s);}
   window[cb]=function(res){clean();if(res&&res.error==='auth'&&retry!==false){setRemoteToken('');if(askRemoteToken())remoteJsonp(params,ok,fail,false);else fail&&fail('PINが必要です');return;}ok&&ok(res||{});};
   s.onerror=function(){clean();fail&&fail('API読込に失敗しました');};
-  s.src=remoteUrl(p);document.head.appendChild(s);setTimeout(function(){if(!done){clean();fail&&fail('API読込がタイムアウトしました');}},15000);
+  s.src=remoteUrl(p);document.head.appendChild(s);setTimeout(function(){if(!done){clean();fail&&fail('API読込がタイムアウトしました');}},45000);
 }
 function ensureRemoteFrame(){
   var id='shift_api_frame',f=document.getElementById(id);if(f)return f;
@@ -314,10 +314,18 @@ function doSubmitPin(){
   function pinFail(msg){if(btn)btn.disabled=false;if(errEl)errEl.textContent=msg||'PINが違います';if(inp){inp.value='';inp.focus();}}
   if(hasRemote()){
     setRemoteToken(pin);
-    remoteJsonp({api:'bundle',ym:curY+'/'+curM},function(res){
-      if(res&&res.error==='auth'){setRemoteToken('');pinFail('PINが違います');}
-      else{pinOk();var k=curY+'/'+curM;applyRemoteBundle(k,res,function(){HIST=[];HISTI=-1;setCleanPoint();render();try{pushState();}catch(e){}});}
-    },function(e){setRemoteToken('');pinFail('接続エラー: '+e);},false);
+    if(errEl)errEl.textContent='';
+    var tryLoad=function(attempt){
+      if(errEl)errEl.textContent='接続中'+'…'.repeat(attempt)+' (GAS起動待ち、最大45秒)';
+      remoteJsonp({api:'bundle',ym:curY+'/'+curM},function(res){
+        if(res&&res.error==='auth'){setRemoteToken('');pinFail('PINが違います');}
+        else{pinOk();var k=curY+'/'+curM;applyRemoteBundle(k,res,function(){HIST=[];HISTI=-1;setCleanPoint();render();try{pushState();}catch(e){}});}
+      },function(e){
+        if(e&&e.indexOf('タイムアウト')>=0&&attempt<2){tryLoad(attempt+1);}
+        else{setRemoteToken('');pinFail('接続できませんでした。もう一度お試しください');}
+      },false);
+    };
+    tryLoad(1);
   } else if(hasGAS()){
     if(ADMIN_PIN&&pin===String(ADMIN_PIN)){pinOk();refresh();}
     else pinFail('PINが違います');
