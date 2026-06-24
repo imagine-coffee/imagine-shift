@@ -170,9 +170,25 @@ thead .nm{z-index:8;}
 .wrwrap select{font-size:11px;padding:2px;border:1px solid #ccc;border-radius:5px;}
 .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#222;color:#fff;font-size:13px;padding:9px 16px;border-radius:20px;opacity:0;transition:.2s;pointer-events:none;z-index:80;}
 .toast.on{opacity:.95;}
+#pin-gate{position:fixed;inset:0;background:#f6f7f9;z-index:200;display:none;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;}
+#pin-gate.on{display:flex;}
+.pg-title{font-size:20px;font-weight:700;color:#1a1a1a;}
+.pg-sub{font-size:13px;color:#888;text-align:center;}
+#pg-input{font-size:26px;letter-spacing:10px;text-align:center;width:180px;padding:10px 16px;border:2px solid #ccc;border-radius:12px;outline:none;background:#fff;}
+#pg-input:focus{border-color:#3c3489;}
+.pg-btn{font-size:15px;font-weight:700;padding:12px 0;border:none;border-radius:10px;background:#3c3489;color:#eeedfe;cursor:pointer;width:180px;}
+.pg-btn:disabled{opacity:.5;cursor:default;}
+.pg-err{color:#a32d2d;font-size:12px;min-height:18px;text-align:center;}
 </style>
 </head>
 <body>
+<div id="pin-gate">
+  <div class="pg-title">伊勢宮 シフト管理</div>
+  <div class="pg-sub">PINを入力してください</div>
+  <input type="password" id="pg-input" maxlength="20" inputmode="numeric" autocomplete="current-password">
+  <button class="pg-btn" id="pg-btn" onclick="doSubmitPin()">確認</button>
+  <div class="pg-err" id="pg-err"></div>
+</div>
 <div class="bar">
   <button onclick="moveMonth(-1)">‹</button><span class="ml" id="ml"></span><button onclick="moveMonth(1)">›</button>
 </div>
@@ -188,7 +204,6 @@ thead .nm{z-index:8;}
 <div class="legend" id="legend"></div>
 <div class="modal-bg" id="mbg" onclick="if(event.target.id==='mbg')closeModal()"><div class="modal"><button class="x" onclick="closeModal()">×</button><div id="mbody"></div></div></div>
 <div class="toast" id="toast"></div>
-
 <script src="config.js"></script>
 <script>
 window.onerror=function(m,s,l){var v=document.getElementById('note');if(v)v.innerHTML='<b style="color:#c00">エラー: '+m+' [行'+l+']</b>';return false;};
@@ -198,6 +213,7 @@ var MSETTINGS    = /*__MSETTINGS__*/null;
 var SLACK_EVENTS = /*__SLACK_EVENTS__*/null;
 var PLAN_EVENTS  = /*__PLAN_EVENTS__*/null;
 var REMOTE_API_URL=(function(){try{var u=new URL(window.location.href),q=u.searchParams.get('apiUrl')||'';if(q)localStorage.setItem('shift_api_url',q);return String(window.SHIFT_API_URL||q||localStorage.getItem('shift_api_url')||'').trim();}catch(e){return String((typeof window!=='undefined'&&window.SHIFT_API_URL)||'').trim();}})();
+var ADMIN_PIN=/*__PIN__*/"";
 var REMOTE_JSONP_SEQ=0,REMOTE_POST_SEQ=0,REMOTE_POST_WAIT={};
 
 var LOC={owner:{name:'オーナー',short:'O',head:'#fff3c9',open:[0,1,2,3,4,5,6],hours:'出店/イベント・SUNAGODA・伊勢宮ヘルプ'},bhavan:{name:'Bhavan',short:'B',head:'#e7e7e7',open:[0,1,2,5,6],hours:'14:00–22:00（水木 定休）'},roast:{name:'Roastery',short:'R',head:'#cfe3f4',open:[2,3,4],hours:'火〜木 12:00–16:30（焙煎=木）'},ise:{name:'伊勢宮',short:'伊',head:'#f3e0d6',open:[0,1,2,3,4,5,6],hours:'毎日 9:00–23:30'},suna:{name:'SUNAGODA',short:'SU',head:'#ecddf4',open:[0,1,2,3,4,5,6],hours:'平日 9–17／土日祝 8–18'}};
@@ -277,6 +293,35 @@ function remotePost(params,ok,fail,retry){
   window.addEventListener('message',onMsg);var form=document.createElement('form');form.method='POST';form.action=remoteApiBase();form.target='shift_api_frame';form.style.display='none';
   Object.keys(p).forEach(function(k){var el=document.createElement(k==='payload'?'textarea':'input');el.name=k;el.value=p[k];form.appendChild(el);});
   document.body.appendChild(form);var timer=setTimeout(function(){cleanup(form);fail&&fail('保存の返事がありませんでした');},20000);form.submit();
+}
+function initPinGate(){
+  if(sessionStorage.getItem('shift_unlocked')==='1'){refresh();return;}
+  if(!hasRemote()&&!hasGAS()){refresh();return;}
+  if(hasGAS()&&!ADMIN_PIN){refresh();return;}
+  var g=document.getElementById('pin-gate');if(g)g.classList.add('on');
+  var inp=document.getElementById('pg-input');
+  if(inp){setTimeout(function(){inp.focus();},120);
+    inp.addEventListener('keydown',function(e){if(e.key==='Enter')doSubmitPin();});}
+}
+function doSubmitPin(){
+  var inp=document.getElementById('pg-input');
+  var btn=document.getElementById('pg-btn');
+  var errEl=document.getElementById('pg-err');
+  var pin=String((inp&&inp.value)||'').trim();
+  if(!pin){if(errEl)errEl.textContent='PINを入力してください';return;}
+  if(btn)btn.disabled=true;if(errEl)errEl.textContent='確認中…';
+  function pinOk(){sessionStorage.setItem('shift_unlocked','1');var g=document.getElementById('pin-gate');if(g)g.classList.remove('on');}
+  function pinFail(msg){if(btn)btn.disabled=false;if(errEl)errEl.textContent=msg||'PINが違います';if(inp){inp.value='';inp.focus();}}
+  if(hasRemote()){
+    setRemoteToken(pin);
+    remoteJsonp({api:'bundle',ym:curY+'/'+curM},function(res){
+      if(res&&res.error==='auth'){setRemoteToken('');pinFail('PINが違います');}
+      else{pinOk();var k=curY+'/'+curM;applyRemoteBundle(k,res,function(){HIST=[];HISTI=-1;setCleanPoint();render();try{pushState();}catch(e){}});}
+    },function(e){setRemoteToken('');pinFail('接続エラー: '+e);},false);
+  } else if(hasGAS()){
+    if(ADMIN_PIN&&pin===String(ADMIN_PIN)){pinOk();refresh();}
+    else pinFail('PINが違います');
+  } else {pinOk();refresh();}
 }
 function ym(){return curY+'/'+curM;}
 var DAY_CACHE={};
@@ -858,7 +903,7 @@ function openModal(html){document.getElementById('mbody').innerHTML=html;documen
 function closeModal(){document.getElementById('mbg').classList.remove('on');}
 var tt=null;function toast(m){var t=document.getElementById('toast');t.textContent=m;t.classList.add('on');if(tt)clearTimeout(tt);tt=setTimeout(function(){t.classList.remove('on');},2400);}
 
-restoreViewState();applySettings();initViewSwipe();refresh();
+restoreViewState();applySettings();initViewSwipe();initPinGate();
 if(document.addEventListener)document.addEventListener('keydown',function(e){if(e.ctrlKey||e.metaKey){var k=String(e.key||'').toLowerCase();if(k==='z'){e.preventDefault();undo();}else if(k==='y'){e.preventDefault();redo();}}});
 </script>
 </body>
