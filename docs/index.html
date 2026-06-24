@@ -216,7 +216,7 @@ var REMOTE_API_URL=(function(){try{var u=new URL(window.location.href),q=u.searc
 var ADMIN_PIN=/*__PIN__*/"";
 var REMOTE_JSONP_SEQ=0,REMOTE_POST_SEQ=0,REMOTE_POST_WAIT={};
 
-var LOC={owner:{name:'オーナー',short:'O',head:'#fff3c9',open:[0,1,2,3,4,5,6],hours:'出店/イベント・SUNAGODA・伊勢宮ヘルプ'},bhavan:{name:'Bhavan',short:'B',head:'#e7e7e7',open:[0,1,2,5,6],hours:'14:00–22:00（水木 定休）'},roast:{name:'Roastery',short:'R',head:'#cfe3f4',open:[2,3,4],hours:'火〜木 12:00–16:30（焙煎=木）'},ise:{name:'伊勢宮',short:'伊',head:'#f3e0d6',open:[0,1,2,3,4,5,6],hours:'毎日 9:00–23:30'},suna:{name:'SUNAGODA',short:'SU',head:'#ecddf4',open:[0,1,2,3,4,5,6],hours:'平日 9–17／土日祝 8–18'}};
+var LOC={owner:{name:'岸本',short:'O',head:'#fff3c9',open:[0,1,2,3,4,5,6],hours:'出店/イベント・SUNAGODA・伊勢宮ヘルプ'},bhavan:{name:'Bhavan',short:'B',head:'#e7e7e7',open:[0,1,2,5,6],hours:'14:00–22:00（水木 定休）'},roast:{name:'Roastery',short:'R',head:'#cfe3f4',open:[2,3,4],hours:'火〜木 12:00–16:30（焙煎=木）'},ise:{name:'伊勢宮',short:'伊',head:'#f3e0d6',open:[0,1,2,3,4,5,6],hours:'毎日 9:00–23:30'},suna:{name:'SUNAGODA',short:'SU',head:'#ecddf4',open:[0,1,2,3,4,5,6],hours:'平日 9–17／土日祝 8–18'}};
 var LOC_ORDER=['owner','bhavan','roast','ise','suna'];
 var PAT={ise:[['8:00','17:00'],['8:30','17:30'],['16:30','24:30'],['19:00','24:30']],suna:[['7:30','16:30'],['7:00','16:00'],['8:30','17:30'],['9:00','18:00']],bhavan:[['13:30','22:30']],roast:[['12:00','16:30']],owner:[]};
 var BASE_PAT=JSON.parse(JSON.stringify(PAT));
@@ -254,7 +254,7 @@ var now=new Date();var curY=now.getFullYear(),curM=now.getMonth()+1;
 var VIEW_ORDER=['day','cal','plan','table','all'],VIEW_ANIM_DIR=0,DAY_ANIM_DIR=0;
 var curView='day',selDay=now.getDate(),editMode=false,DATA={},SLACK={},EVENTS={},savedCache={},editT=null,pickLoc='ise',dirty=false,save_alerts=[],WARN=[],COPY_CELL=null,COPY_LABEL='',SEL_CELLS=[],SEL_LAST=null,EDIT_IN='',EDIT_OUT='',EDIT_NOTE='',SAVED_SIG='';
 var planShow={req:true,ev:true},evPickLoc='ise',SEVENTS={},sevCache={},pevCache={},EV_EDIT_DAY=null,EV_EDIT_IDX=null,WARNMAP={};
-var calFilter=null,calFilterOpen=false;
+var calFilter=null,calFilterOpen=false,calLocFilter=null;
 if(SAVED&&SAVED.ym)savedCache[SAVED.ym]=SAVED.data||null;
 if(SLACK_EVENTS&&SLACK_EVENTS.ym)sevCache[SLACK_EVENTS.ym]=SLACK_EVENTS.data||{};
 if(PLAN_EVENTS&&PLAN_EVENTS.ym)pevCache[PLAN_EVENTS.ym]=PLAN_EVENTS.data||{};
@@ -292,7 +292,7 @@ function remotePost(params,ok,fail,retry){
   function onMsg(ev){var d=ev.data||{};if(!d||d.source!=='iseShiftApi'||d.requestId!==rid)return;cleanup(form);if(d.error==='auth'&&retry!==false){setRemoteToken('');if(askRemoteToken())remotePost(params,ok,fail,false);else fail&&fail('PINが必要です');return;}if(d.ok)ok&&ok(d);else fail&&fail(d.error||'保存に失敗しました');}
   window.addEventListener('message',onMsg);var form=document.createElement('form');form.method='POST';form.action=remoteApiBase();form.target='shift_api_frame';form.style.display='none';
   Object.keys(p).forEach(function(k){var el=document.createElement(k==='payload'?'textarea':'input');el.name=k;el.value=p[k];form.appendChild(el);});
-  document.body.appendChild(form);var timer=setTimeout(function(){cleanup(form);fail&&fail('保存の返事がありませんでした');},20000);form.submit();
+  document.body.appendChild(form);var timer=setTimeout(function(){cleanup(form);fail&&fail('タイムアウト（GASの処理が遅延しています。実際には保存されている可能性があります。ページを再読み込みして確認してください）');},50000);form.submit();
 }
 function initPinGate(){
   if(sessionStorage.getItem('shift_unlocked')==='1'){refresh();return;}
@@ -360,7 +360,7 @@ function savePatterns(){
   try{localStorage.setItem('custom_patterns',JSON.stringify(obj));}catch(e){}
   MSETTINGS=MSETTINGS||{};MSETTINGS.patterns=obj;
   if(hasGAS())google.script.run.saveMSettings(JSON.stringify(MSETTINGS));
-  else if(hasRemote())remotePost({api:'saveMSettings',payload:JSON.stringify(MSETTINGS)},function(){},function(e){toast('設定保存失敗:'+e);});
+  else if(hasRemote())remotePost({api:'saveMSettings',payload:JSON.stringify(MSETTINGS)},function(){toast('設定を保存しました');},function(e){toast('⚠️ '+e);});
 }
 
 /* Slack→セル */
@@ -390,7 +390,7 @@ function shiftPayload(){return JSON.stringify({cells:DATA,events:EVENTS});}
 function setCleanPoint(){SAVED_SIG=shiftSig();dirty=false;}
 function updateDirty(){dirty=shiftSig()!==SAVED_SIG;return dirty;}
 function saveShift(){openModal('<h3>この内容で共有しますか？</h3><p class="mtext">「確定保存」すると、'+curY+'年'+curM+'月のシフトが全員に共有されます。よろしいですか？</p><div class="setrow" style="justify-content:flex-end;gap:8px;margin-top:6px"><button class="btn" onclick="closeModal()">キャンセル</button><button class="btn pri" onclick="doSaveShift()">共有して保存</button></div>');}
-function doSaveShift(){closeModal();var k=ym(),payload=shiftPayload();function saved(){savedCache[k]={cells:deepCopy(DATA),events:deepCopy(EVENTS)};setCleanPoint();render();toast('確定保存しました ✅ 全員に共有');}function failed(e){updateDirty();render();toast('保存失敗:'+e);}if(hasGAS())google.script.run.withSuccessHandler(saved).withFailureHandler(failed).saveMultiShift(k,payload);else if(hasRemote())remotePost({api:'saveMultiShift',ym:k,payload:payload},saved,failed);else{saved();toast('（プレビューのため保存されません）');}}
+function doSaveShift(){closeModal();var k=ym(),payload=shiftPayload();toast('保存中…');function saved(){savedCache[k]={cells:deepCopy(DATA),events:deepCopy(EVENTS)};setCleanPoint();render();toast('確定保存しました ✅ 全員に共有');}function failed(e){updateDirty();render();toast('⚠️ '+e);}if(hasGAS())google.script.run.withSuccessHandler(saved).withFailureHandler(failed).saveMultiShift(k,payload);else if(hasRemote())remotePost({api:'saveMultiShift',ym:k,payload:payload},saved,failed);else{saved();toast('（プレビューのため保存されません）');}}
 function moveMonth(delta){curM+=delta;if(curM>12){curM=1;curY++;}if(curM<1){curM=12;curY--;}selDay=1;rememberViewState();refresh();}
 function refresh(){load(function(sv){HIST=[];HISTI=-1;if(!sv){autoFill(true);setCleanPoint();render();}else{setCleanPoint();render();}pushState();});}
 function setView(v){if(v!=='table'&&editMode){editMode=false;clearSelection(false);}curView=v;rememberViewState();render();}
@@ -613,14 +613,23 @@ function calChip(p,s){var f=firstChar(s.name);if(p.k==='task')return f+' '+(p.la
 function toggleMemberFilter(){calFilterOpen=!calFilterOpen;render();}
 function setMemberAll(){calFilter=null;render();}
 function toggleMember(id){if(!calFilter)calFilter=[];var i=calFilter.indexOf(id);if(i>=0)calFilter.splice(i,1);else calFilter.push(id);if(!calFilter.length)calFilter=null;render();}
+function toggleLocFilter(loc){if(!calLocFilter)calLocFilter=[];var i=calLocFilter.indexOf(loc);if(i>=0)calLocFilter.splice(i,1);else calLocFilter.push(loc);if(!calLocFilter.length)calLocFilter=null;render();}
+function setLocAll(){calLocFilter=null;render();}
 function renderCalView(){
   var d=daysIn(curY,curM),first=(d[0].dow+6)%7;
-  var h='<div class="calbar"><button class="memBtn'+(calFilter?' on':'')+'" onclick="toggleMemberFilter()">👥 メンバー絞り込み'+(calFilter?'（'+calFilter.length+'人）':'')+'</button>';
-  if(calFilterOpen){h+='<div class="memchips"><span class="memchip'+(!calFilter?' on':'')+'" onclick="setMemberAll()">全員</span>';STAFF.forEach(function(s){if(s.external)return;var on=calFilter&&calFilter.indexOf(s.id)>=0;h+='<span class="memchip'+(on?' on':'')+'" onclick="toggleMember('+s.id+')">'+shortName(s.name)+'</span>';});h+='</div>';}
+  var h='<div class="calbar">';
+  // 部門絞り込みボタン
+  h+='<div class="memchips">';
+  h+='<span class="memchip'+(!calLocFilter?' on':'')+'" onclick="setLocAll()">全部門</span>';
+  LOC_ORDER.forEach(function(k){var lc=LOC[k];if(!lc)return;var on=calLocFilter&&calLocFilter.indexOf(k)>=0;h+='<span class="memchip'+(on?' on':'')+'" onclick="toggleLocFilter(\''+k+'\')" style="'+(on?'':'border-left:3px solid '+lc.head+';')+'">'+lc.name+'</span>';});
+  h+='</div>';
+  // メンバー絞り込みボタン
+  h+='<button class="memBtn'+(calFilter?' on':'')+'" onclick="toggleMemberFilter()">👥 メンバー絞り込み'+(calFilter?'（'+calFilter.length+'人）':'')+'</button>';
+  if(calFilterOpen){h+='<div class="memchips"><span class="memchip'+(!calFilter?' on':'')+'" onclick="setMemberAll()">全員</span>';STAFF.forEach(function(s){if(s.external)return;if(calLocFilter&&calLocFilter.indexOf(s.home)<0)return;var on=calFilter&&calFilter.indexOf(s.id)>=0;h+='<span class="memchip'+(on?' on':'')+'" onclick="toggleMember('+s.id+')">'+shortName(s.name)+'</span>';});h+='</div>';}
   h+='</div><div class="cal calnames">';
   for(var b=0;b<first;b++)h+='<div class="d blank"></div>';
   d.forEach(function(day){var di=day.d,cls=dcls(day),ents=[];
-    STAFF.forEach(function(s){if(s.external)return;if(calFilter&&calFilter.indexOf(s.id)<0)return;dutyParts(cellFor(s.id,di)).forEach(function(p){ents.push({s:s,c:p,r:dutyRank(p),t:startH(p.in)});});});
+    STAFF.forEach(function(s){if(s.external)return;if(calLocFilter&&calLocFilter.indexOf(s.home)<0)return;if(calFilter&&calFilter.indexOf(s.id)<0)return;dutyParts(cellFor(s.id,di)).forEach(function(p){ents.push({s:s,c:p,r:dutyRank(p),t:startH(p.in)});});});
     ents.sort(function(a,b){return (a.r-b.r)||(a.t-b.t);});
     var chips=ents.map(function(e){var col=dutyColor(e.c),tc=textOn(col);return '<span class="nchip" style="background:'+col+';color:'+tc+'" title="'+esc(shortName(e.s.name)+' '+segLine(e.c,e.s.home))+'">'+esc(calChip(e.c,e.s))+'</span>';}).join('');
     if(!chips)chips='<span class="empt">休</span>';
