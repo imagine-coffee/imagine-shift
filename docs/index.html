@@ -179,11 +179,33 @@ thead .nm{z-index:8;}
 .pg-btn{font-size:15px;font-weight:700;padding:12px 0;border:none;border-radius:10px;background:#3c3489;color:#eeedfe;cursor:pointer;width:180px;}
 .pg-btn:disabled{opacity:.5;cursor:default;}
 .pg-err{color:#a32d2d;font-size:12px;min-height:18px;text-align:center;}
+.evtab{padding:12px 10px 20px;}
+.evtab .esec{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800;color:#5a6470;margin:8px 2px 10px;}
+.evtab .ecards{display:flex;flex-direction:column;gap:8px;margin-bottom:20px;}
+.ecard{display:flex;align-items:stretch;gap:10px;border:1px solid #e6e9ee;border-radius:12px;padding:10px 12px;background:#fff;box-shadow:0 2px 7px rgba(40,50,70,.06);cursor:pointer;}
+.ecard .ec-bar{flex:0 0 6px;border-radius:4px;}
+.ecard .ec-main{flex:1;min-width:0;align-self:center;}
+.ecard .ec-d{font-size:12px;font-weight:800;color:#39414c;}
+.ecard .ec-t{font-size:14px;font-weight:700;color:#1f2630;margin-top:2px;word-break:break-word;}
+.ecard .ec-sub{font-size:11px;color:#6b7480;margin-top:2px;}
+.ecard .ec-edit{flex:0 0 auto;align-self:center;font-size:12px;font-weight:700;color:#3c3489;border:1px solid #d4d2ee;background:#f3f2fd;border-radius:8px;padding:6px 10px;white-space:nowrap;}
+.ecard .ec-tag{flex:0 0 auto;align-self:center;font-size:10px;font-weight:800;color:#666;background:#eef0f3;border-radius:6px;padding:3px 7px;}
+.evtab .eempty{text-align:center;color:#aab0b8;font-size:12px;padding:18px 10px;}
+.allextra{display:flex;gap:10px;margin-top:8px;width:100%;}
+.allextra-col{flex:1;min-width:0;border:1px solid #d8dde6;border-radius:8px;padding:6px 8px;}
+.allextra .ae-h{font-size:9px;font-weight:800;color:#5a6470;margin-bottom:4px;border-bottom:1px solid #eceff2;padding-bottom:2px;}
+.allextra .ae-item{display:flex;align-items:center;gap:5px;font-size:8px;line-height:1.55;padding:1px 0;}
+.allextra .ae-dot{flex:0 0 8px;width:8px;height:8px;border-radius:2px;}
+.allextra .ae-d{flex:0 0 auto;font-weight:700;color:#39414c;}
+.allextra .ae-n{flex:0 0 auto;color:#7a828c;}
+.allextra .ae-t{flex:1;min-width:0;color:#1f2630;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.allextra .ae-s{flex:0 0 auto;font-weight:800;color:#999;}
+.allextra .ae-empty{font-size:8px;color:#aab0b8;}
 </style>
 </head>
 <body>
 <div id="pin-gate">
-  <div class="pg-title">伊勢宮 シフト管理</div>
+  <div class="pg-title">シフト管理</div>
   <div class="pg-sub">PINを入力してください</div>
   <input type="password" id="pg-input" maxlength="20" inputmode="numeric" autocomplete="current-password">
   <button class="pg-btn" id="pg-btn" onclick="doSubmitPin()">確認</button>
@@ -193,9 +215,10 @@ thead .nm{z-index:8;}
   <button onclick="moveMonth(-1)">‹</button><span class="ml" id="ml"></span><button onclick="moveMonth(1)">›</button>
 </div>
 <div class="views" id="viewbar">
-  <button data-v="day" onclick="setView('day')">日別</button>
+  <button data-v="day" onclick="goDayView()">日別</button>
   <button data-v="cal" onclick="setView('cal')">シフトカレンダー</button>
   <button data-v="plan" onclick="setView('plan')">希望休・イベント</button>
+  <button data-v="ev" onclick="setView('ev')">イベント詳細・時間変更</button>
   <button data-v="table" onclick="setView('table')">表</button>
   <button data-v="all" onclick="printTable()">全体表示（PDF）</button>
 </div>
@@ -251,7 +274,7 @@ function holNm(y,m,d){return HOLIDAYS[y+'/'+m+'/'+d]||'';}
 function dcls(day){return (day.dow===0||day.hol)?'sun':day.dow===6?'sat':'';}
 
 var now=new Date();var curY=now.getFullYear(),curM=now.getMonth()+1;
-var VIEW_ORDER=['day','cal','plan','table','all'],VIEW_ANIM_DIR=0,DAY_ANIM_DIR=0;
+var VIEW_ORDER=['day','cal','plan','ev','table','all'],VIEW_ANIM_DIR=0,DAY_ANIM_DIR=0;
 var curView='day',selDay=now.getDate(),editMode=false,DATA={},SLACK={},EVENTS={},savedCache={},editT=null,pickLoc='ise',dirty=false,save_alerts=[],WARN=[],COPY_CELL=null,COPY_LABEL='',SEL_CELLS=[],SEL_LAST=null,EDIT_IN='',EDIT_OUT='',EDIT_NOTE='',SAVED_SIG='';
 var planShow={req:true,ev:true},evPickLoc='ise',SEVENTS={},sevCache={},pevCache={},EV_EDIT_DAY=null,EV_EDIT_IDX=null,WARNMAP={};
 var calFilter=null,calFilterOpen=false,calLocFilter=null;
@@ -316,7 +339,7 @@ function doSubmitPin(){
     setRemoteToken(pin);
     if(errEl)errEl.textContent='';
     var tryLoad=function(attempt){
-      if(errEl)errEl.textContent='接続中'+'…'.repeat(attempt)+' (GAS起動待ち、最大45秒)';
+      if(errEl)errEl.textContent='接続中...';
       remoteJsonp({api:'bundle',ym:curY+'/'+curM},function(res){
         if(res&&res.error==='auth'){setRemoteToken('');pinFail('PINが違います');}
         else{pinOk();var k=curY+'/'+curM;applyRemoteBundle(k,res,function(){HIST=[];HISTI=-1;setCleanPoint();render();try{pushState();}catch(e){}});}
@@ -402,6 +425,7 @@ function doSaveShift(){closeModal();var k=ym(),payload=shiftPayload();toast('保
 function moveMonth(delta){curM+=delta;if(curM>12){curM=1;curY++;}if(curM<1){curM=12;curY--;}selDay=1;rememberViewState();refresh();}
 function refresh(){load(function(sv){HIST=[];HISTI=-1;if(!sv){autoFill(true);setCleanPoint();render();}else{setCleanPoint();render();}pushState();});}
 function setView(v){if(v!=='table'&&editMode){editMode=false;clearSelection(false);}curView=v;rememberViewState();render();}
+function goDayView(){var t=new Date();selDay=(curY===t.getFullYear()&&curM===t.getMonth()+1)?t.getDate():1;selDay=Math.max(1,Math.min(dayCount(),selDay));setView('day');}
 function viewIndex(){for(var i=0;i<VIEW_ORDER.length;i++)if(VIEW_ORDER[i]===curView)return i;return 0;}
 function canMoveView(delta){var i=viewIndex(),n=Math.max(0,Math.min(VIEW_ORDER.length-1,i+delta));return n!==i;}
 function moveView(delta,animate){var i=viewIndex(),n=Math.max(0,Math.min(VIEW_ORDER.length-1,i+delta));if(n!==i){if(animate)VIEW_ANIM_DIR=delta;setView(VIEW_ORDER[n]);}}
@@ -556,16 +580,17 @@ function render(){
   document.getElementById('ml').textContent=curY+'年'+curM+'月';
   var bx=document.getElementById('viewbox');
   if(curView==='table'){bx.style.maxHeight=(typeof window!=='undefined'&&window.innerWidth>=1000)?'86vh':'74vh';bx.innerHTML=tableToolsHtml()+renderTableView();}
-  else if(curView==='all'){bx.style.maxHeight='none';bx.innerHTML='<div class="alltbl">'+renderTableView()+'</div>';}
+  else if(curView==='all'){bx.style.maxHeight='none';bx.innerHTML='<div class="alltbl">'+renderTableView()+renderEventSummaryHtml()+'</div>';}
   else if(curView==='cal'){bx.style.maxHeight='none';bx.innerHTML=renderCalView();}
   else if(curView==='plan'){bx.style.maxHeight='none';bx.innerHTML=renderPlanView();}
+  else if(curView==='ev'){bx.style.maxHeight='none';bx.innerHTML=renderEventDetailView();}
   else {bx.style.maxHeight='none';bx.innerHTML=renderDayView();}
   var wn=document.getElementById('note'),msgs=[];
   if(WARN.length)msgs.push('<b style="color:#c62828">⚠ ルール警告 '+WARN.length+'件</b>');
   if(save_alerts.length)msgs.push('<b style="color:#b85c00">人員要確認 '+save_alerts.length+'件：</b>'+save_alerts.slice(0,5).join('、')+(save_alerts.length>5?' 他':''));
   if(dirty)msgs.push('<span style="color:#b85c00">●未保存</span>');
   wn.innerHTML=msgs.length?msgs.join('　'):(curView==='table'?'左Sの緑印＝Slack申請の自動反映。「半自動編成」で区分け配置、「確定保存」で全員に共有。':'');
-  var lg=document.getElementById('legend');if(lg){if(curView==='cal'||curView==='plan')lg.style.display='none';else{lg.style.display='';renderLegend();}}
+  var lg=document.getElementById('legend');if(lg){if(curView==='cal'||curView==='plan'||curView==='ev')lg.style.display='none';else{lg.style.display='';renderLegend();}}
   syncTableTools();
   centerActiveViewTab();
   animateViewEntry();
@@ -575,10 +600,11 @@ function tableToolsHtml(){return '<div class="tabletools"><button id="edBtn" onc
 function printTable(){
   var title=curY+'年'+curM+'月 シフト表';
   var tableHtml=renderTableView(false);
-  var css='*{box-sizing:border-box;margin:0;padding:0;}body{font-family:-apple-system,"Helvetica Neue",sans-serif;font-size:8px;padding:10px;}h2{font-size:13px;font-weight:700;margin-bottom:8px;text-align:center;}table{border-collapse:collapse;width:100%;}th,td{border:1px solid #bbb;text-align:center;padding:2px 1px;white-space:nowrap;vertical-align:middle;}thead th{background:#eef0f3;font-size:8px;color:#444;height:24px;}.nm{text-align:left;min-width:72px;font-weight:600;font-size:8px;padding:2px 4px;}.cnt{font-weight:700;min-width:22px;background:#f4f6f8;}.sun{color:#a32d2d;}.sat{color:#185fa5;}.locbadge{display:inline-block;font-size:7px;font-weight:700;border-radius:3px;padding:0 2px;margin-right:2px;color:#333;}.two{display:flex;flex-direction:column;line-height:1.1;min-height:26px;justify-content:center;align-items:center;}.lab{font-size:7px;opacity:.85;}.multi{display:flex;flex-direction:column;min-height:26px;}.multi .seg{flex:1;display:flex;align-items:center;justify-content:center;font-size:7px;padding:1px;line-height:1.1;border-bottom:1px solid rgba(255,255,255,.5);}.multi .seg:last-child{border-bottom:none;}.cell{min-width:28px;height:26px;}.tnote{display:none;}@page{size:A4 landscape;margin:8mm;}';
+  var extraHtml=renderEventSummaryHtml();
+  var css='*{box-sizing:border-box;margin:0;padding:0;}body{font-family:-apple-system,"Helvetica Neue",sans-serif;font-size:8px;padding:10px;}h2{font-size:13px;font-weight:700;margin-bottom:8px;text-align:center;}table{border-collapse:collapse;width:100%;}th,td{border:1px solid #bbb;text-align:center;padding:2px 1px;white-space:nowrap;vertical-align:middle;}thead th{background:#eef0f3;font-size:8px;color:#444;height:24px;}.nm{text-align:left;min-width:72px;font-weight:600;font-size:8px;padding:2px 4px;}.cnt{font-weight:700;min-width:22px;background:#f4f6f8;}.sun{color:#a32d2d;}.sat{color:#185fa5;}.locbadge{display:inline-block;font-size:7px;font-weight:700;border-radius:3px;padding:0 2px;margin-right:2px;color:#333;}.two{display:flex;flex-direction:column;line-height:1.1;min-height:26px;justify-content:center;align-items:center;}.lab{font-size:7px;opacity:.85;}.multi{display:flex;flex-direction:column;min-height:26px;}.multi .seg{flex:1;display:flex;align-items:center;justify-content:center;font-size:7px;padding:1px;line-height:1.1;border-bottom:1px solid rgba(255,255,255,.5);}.multi .seg:last-child{border-bottom:none;}.cell{min-width:28px;height:26px;}.tnote{display:none;}.allextra{display:flex;gap:8px;margin-top:6px;width:100%;page-break-inside:avoid;}.allextra-col{flex:1;min-width:0;border:1px solid #bbb;border-radius:5px;padding:4px 6px;}.allextra .ae-h{font-size:8px;font-weight:700;color:#444;margin-bottom:3px;border-bottom:1px solid #ddd;padding-bottom:2px;}.allextra .ae-item{display:flex;align-items:center;gap:4px;font-size:7px;line-height:1.5;padding:0;white-space:nowrap;}.allextra .ae-dot{flex:0 0 7px;width:7px;height:7px;border-radius:2px;}.allextra .ae-d{flex:0 0 auto;font-weight:700;}.allextra .ae-n{flex:0 0 auto;color:#666;}.allextra .ae-t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;}.allextra .ae-s{flex:0 0 auto;font-weight:700;color:#999;}.allextra .ae-empty{font-size:7px;color:#aaa;}@page{size:A4 landscape;margin:8mm;}';
   var win=window.open('','_blank','width=1200,height=800');
   if(!win){toast('ポップアップをブロックされています。許可してください');return;}
-  win.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+title+'</title><style>'+css+'</style></head><body><h2>'+title+'</h2>'+tableHtml+'</body></html>');
+  win.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+title+'</title><style>'+css+'</style></head><body><h2>'+title+'</h2>'+tableHtml+extraHtml+'</body></html>');
   win.document.close();
   win.addEventListener('load',function(){win.focus();win.print();});
 }
@@ -649,7 +675,7 @@ function planDayWeek(d,first){return Math.floor((first+d-1)/7);}
 function planDayCol(d,first){return (first+d-1)%7;}
 function collectPlanRanges(total){
   var ranges=[];
-  Object.keys(EVENTS||{}).forEach(function(k){var start=Math.max(1,Math.min(total,+k||1));(EVENTS[k]||[]).forEach(function(ev,idx){var end=Math.max(start,Math.min(total,+ev.end||start));ranges.push({start:start,end:end,loc:ev.loc,title:ev.title||'',srcDay:+k,idx:idx,slk:false});});});
+  Object.keys(EVENTS||{}).forEach(function(k){var start=Math.max(1,Math.min(total,+k||1));(EVENTS[k]||[]).forEach(function(ev,idx){if(ev.kind==='hours')return;var end=Math.max(start,Math.min(total,+ev.end||start));ranges.push({start:start,end:end,loc:ev.loc,title:ev.title||'',srcDay:+k,idx:idx,slk:false});});});
   var groups={};
   Object.keys(SEVENTS||{}).forEach(function(k){var d=+k;if(d<1||d>total)return;(SEVENTS[k]||[]).forEach(function(ev){var key=(ev.loc||'')+'\t'+(ev.title||'');if(!groups[key])groups[key]={loc:ev.loc,title:ev.title||'',days:{}};groups[key].days[d]=true;});});
   Object.keys(groups).forEach(function(k){var g=groups[k],ds=Object.keys(g.days).map(Number).sort(function(a,b){return a-b;}),s=null,p=null;ds.forEach(function(d){if(s==null){s=p=d;return;}if(d===p+1){p=d;return;}ranges.push({start:s,end:p,loc:g.loc,title:g.title,slk:true});s=p=d;});if(s!=null)ranges.push({start:s,end:p,loc:g.loc,title:g.title,slk:true});});
@@ -710,6 +736,73 @@ function saveEventEdit(){var v=eventFormValue();if(!v)return;if(EV_EDIT_DAY!=nul
 function deleteEventEdit(){if(EV_EDIT_DAY==null||EV_EDIT_IDX==null){closeModal();return;}removeEventAt(EV_EDIT_DAY,EV_EDIT_IDX);closeModal();render();savePlanEventsNow('予定を削除しました');EV_EDIT_DAY=null;EV_EDIT_IDX=null;}
 function delEvent(d,idx){removeEventAt(d,idx);render();savePlanEventsNow('予定を削除しました');}
 function savePlanEventsNow(msg){var k=ym(),payload=JSON.stringify(EVENTS);pevCache[k]=deepCopy(EVENTS);try{localStorage.setItem('plan_events_'+k,payload);}catch(e){}if(hasGAS())google.script.run.withSuccessHandler(function(){toast(msg||'予定を保存しました');}).withFailureHandler(function(e){toast('予定保存失敗:'+e);}).savePlanEvents(k,payload);else if(hasRemote())remotePost({api:'savePlanEvents',ym:k,payload:payload},function(){toast(msg||'予定を保存しました');},function(e){toast('予定保存失敗:'+e);});else toast(msg||'予定を保存しました');}
+/* イベント詳細・時間変更タブ */
+function evDateLabel(s,e){var days=daysIn(curY,curM);function lab(d){var dd=days[d-1];return curM+'/'+d+'('+(dd?DOW[dd.dow]:'')+')';}return s===e?lab(s):lab(s)+'〜'+lab(e);}
+function evDateShort(s,e){return s===e?(curM+'/'+s):(curM+'/'+s+'-'+e);}
+function hoursList(){var out=[];Object.keys(EVENTS||{}).forEach(function(k){(EVENTS[k]||[]).forEach(function(ev,idx){if(ev.kind!=='hours')return;out.push({day:+k,idx:idx,ev:ev});});});out.sort(function(a,b){return a.day-b.day||((+a.ev.end||a.day)-(+b.ev.end||b.day));});return out;}
+function renderEventDetailView(){
+  var total=daysIn(curY,curM).length;
+  var h='<div class="evtab">';
+  h+='<div class="esec">📅 イベント<button class="btn" style="margin-left:auto;padding:6px 12px" onclick="openEvent(0)">＋ イベントを追加</button></div><div class="ecards">';
+  var rs=collectPlanRanges(total);
+  if(!rs.length)h+='<div class="eempty">この月のイベント登録はありません</div>';
+  rs.forEach(function(r){var col=LOC[r.loc]?LOC[r.loc].head:'#eee',nm=LOC[r.loc]?LOC[r.loc].name:'';
+    if(r.slk){h+='<div class="ecard" style="cursor:default" title="Slack申請（取消はSlackで）"><div class="ec-bar" style="background:'+col+'"></div><div class="ec-main"><div class="ec-d">'+evDateLabel(r.start,r.end)+'</div><div class="ec-t">'+esc(r.title||'(無題)')+'</div><div class="ec-sub">'+esc(nm)+'</div></div><span class="ec-tag">Slack</span></div>';}
+    else{h+='<div class="ecard" onclick="openEventEdit('+r.srcDay+','+r.idx+')"><div class="ec-bar" style="background:'+col+'"></div><div class="ec-main"><div class="ec-d">'+evDateLabel(r.start,r.end)+'</div><div class="ec-t">'+esc(r.title||'(無題)')+'</div><div class="ec-sub">'+esc(nm)+'</div></div><span class="ec-edit">✎ 編集</span></div>';}});
+  h+='</div>';
+  h+='<div class="esec">🕒 店舗の時間変更<button class="btn" style="margin-left:auto;padding:6px 12px" onclick="openHours(0)">＋ 時間変更を追加</button></div><div class="ecards">';
+  var hl=hoursList();
+  if(!hl.length)h+='<div class="eempty">この月の時間変更の登録はありません</div>';
+  hl.forEach(function(o){var ev=o.ev,col=LOC[ev.loc]?LOC[ev.loc].head:'#eee',nm=LOC[ev.loc]?LOC[ev.loc].name:'';
+    h+='<div class="ecard" onclick="openHours('+o.day+','+o.idx+')"><div class="ec-bar" style="background:'+col+'"></div><div class="ec-main"><div class="ec-d">'+evDateLabel(o.day,+ev.end||o.day)+' ・ '+esc(nm)+'</div><div class="ec-t">'+esc(ev.hours||'')+'</div>'+(ev.title?'<div class="ec-sub">'+esc(ev.title)+'</div>':'')+'</div><span class="ec-edit">✎ 編集</span></div>';});
+  h+='</div></div>';
+  return h;
+}
+/* 店舗の時間変更 編集（EVENTSにkind:'hours'で保存） */
+var HRS_EDIT_DAY=null,HRS_EDIT_IDX=null,hrsPickLoc='ise',HRS_D=1,HRS_E=1,HRS_TIME='',HRS_MEMO='';
+function openHours(d,idx){
+  var editing=(idx!=null&&d);HRS_EDIT_DAY=editing?d:null;HRS_EDIT_IDX=editing?idx:null;
+  var ev=(editing&&EVENTS[d])?EVENTS[d][idx]:null;
+  HRS_D=editing?d:Math.max(1,Math.min(dayCount(),selDay||1));HRS_E=ev?(+ev.end||HRS_D):HRS_D;HRS_TIME=ev?(ev.hours||''):'';HRS_MEMO=ev?(ev.title||''):'';
+  if(ev&&ev.loc)hrsPickLoc=ev.loc;
+  renderHoursBody();document.getElementById('mbg').classList.add('on');
+}
+function captureHoursDraft(){var a=document.getElementById('hrsDate'),b=document.getElementById('hrsEnd'),t=document.getElementById('hrsTime'),m=document.getElementById('hrsMemo');if(a)HRS_D=+a.value;if(b)HRS_E=+b.value;if(t)HRS_TIME=t.value;if(m)HRS_MEMO=m.value;}
+function hrsSetLoc(lid){captureHoursDraft();hrsPickLoc=lid;renderHoursBody();}
+function hrsSyncEnd(){var a=document.getElementById('hrsDate'),b=document.getElementById('hrsEnd');if(a&&b&&+b.value<+a.value)b.value=a.value;}
+function renderHoursBody(){
+  var days=daysIn(curY,curM),editing=HRS_EDIT_DAY!=null&&HRS_EDIT_IDX!=null;if(HRS_E<HRS_D)HRS_E=HRS_D;
+  var h='<h3>'+(editing?'店舗の時間変更を編集':'店舗の時間変更を追加')+'</h3>';
+  h+='<div class="sec">店舗</div><div class="locsel">';
+  LOC_ORDER.forEach(function(lid){h+='<button class="'+(lid===hrsPickLoc?'on':'')+'" style="background:'+LOC[lid].head+'" onclick="hrsSetLoc(\''+lid+'\')">'+LOC[lid].name+'</button>';});
+  h+='</div>';
+  h+='<div class="sec">開始日</div><select id="hrsDate" style="width:100%;font-size:14px;padding:7px;border:1px solid #ccc;border-radius:8px" onchange="hrsSyncEnd()">';
+  days.forEach(function(day){h+='<option value="'+day.d+'"'+(day.d===HRS_D?' selected':'')+'>'+curM+'/'+day.d+'('+DOW[day.dow]+')'+(day.hol?' '+day.holName:'')+'</option>';});h+='</select>';
+  h+='<div class="sec">終了日</div><select id="hrsEnd" style="width:100%;font-size:14px;padding:7px;border:1px solid #ccc;border-radius:8px">';
+  days.forEach(function(day){h+='<option value="'+day.d+'"'+(day.d===HRS_E?' selected':'')+'>'+curM+'/'+day.d+'('+DOW[day.dow]+')'+(day.hol?' '+day.holName:'')+'</option>';});h+='</select>';
+  h+='<div class="sec">変更後の時間</div><input id="hrsTime" placeholder="例：9:00–22:00／臨時休業" value="'+esc(HRS_TIME)+'" style="width:100%;font-size:14px;padding:8px;border:1px solid #ccc;border-radius:8px">';
+  h+='<div class="sec">メモ（任意）</div><input id="hrsMemo" placeholder="例：イベントのため短縮" value="'+esc(HRS_MEMO)+'" style="width:100%;font-size:14px;padding:8px;border:1px solid #ccc;border-radius:8px">';
+  h+='<div class="setrow" style="justify-content:flex-end;margin-top:10px"><button class="btn" onclick="closeModal()">閉じる</button> '+(editing?'<button class="btn" style="background:#fff3e0;border-color:#e0a060" onclick="deleteHours()">削除</button> ':'')+'<button class="btn" style="background:#27500a;color:#eaf3de;border-color:#27500a" onclick="saveHours()">'+(editing?'保存':'追加')+'</button></div>';
+  document.getElementById('mbody').innerHTML=h;
+}
+function saveHours(){captureHoursDraft();var t=String(HRS_TIME||'').trim();if(!t){toast('変更後の時間を入力してください');return;}if(HRS_E<HRS_D){toast('終了日は開始日以降にしてください');return;}
+  if(HRS_EDIT_DAY!=null&&HRS_EDIT_IDX!=null)removeEventAt(HRS_EDIT_DAY,HRS_EDIT_IDX);
+  if(!EVENTS[HRS_D])EVENTS[HRS_D]=[];EVENTS[HRS_D].push({kind:'hours',loc:hrsPickLoc,hours:t,title:String(HRS_MEMO||'').trim(),end:HRS_E});
+  closeModal();render();savePlanEventsNow(HRS_EDIT_DAY!=null?'時間変更を保存しました':'時間変更を追加しました');HRS_EDIT_DAY=null;HRS_EDIT_IDX=null;}
+function deleteHours(){if(HRS_EDIT_DAY==null||HRS_EDIT_IDX==null){closeModal();return;}removeEventAt(HRS_EDIT_DAY,HRS_EDIT_IDX);closeModal();render();savePlanEventsNow('時間変更を削除しました');HRS_EDIT_DAY=null;HRS_EDIT_IDX=null;}
+/* 全体表示・印刷用：イベント＋時間変更の枠 */
+function renderEventSummaryHtml(){
+  var total=daysIn(curY,curM).length,rs=collectPlanRanges(total),hl=hoursList();
+  if(!rs.length&&!hl.length)return '';
+  var h='<div class="allextra"><div class="allextra-col"><div class="ae-h">イベント</div>';
+  if(!rs.length)h+='<div class="ae-empty">なし</div>';
+  rs.forEach(function(r){var nm=LOC[r.loc]?LOC[r.loc].name:'',col=LOC[r.loc]?LOC[r.loc].head:'#eee';h+='<div class="ae-item"><span class="ae-dot" style="background:'+col+'"></span><span class="ae-d">'+evDateShort(r.start,r.end)+'</span><span class="ae-n">'+esc(nm)+'</span><span class="ae-t">'+esc(r.title||'')+'</span>'+(r.slk?'<span class="ae-s">S</span>':'')+'</div>';});
+  h+='</div><div class="allextra-col"><div class="ae-h">店舗の時間変更</div>';
+  if(!hl.length)h+='<div class="ae-empty">なし</div>';
+  hl.forEach(function(o){var ev=o.ev,nm=LOC[ev.loc]?LOC[ev.loc].name:'',col=LOC[ev.loc]?LOC[ev.loc].head:'#eee';h+='<div class="ae-item"><span class="ae-dot" style="background:'+col+'"></span><span class="ae-d">'+evDateShort(o.day,+ev.end||o.day)+'</span><span class="ae-n">'+esc(nm)+'</span><span class="ae-t">'+esc(ev.hours||'')+(ev.title?'（'+esc(ev.title)+'）':'')+'</span></div>';});
+  h+='</div></div>';
+  return h;
+}
 function renderDayView(){
   var d=daysIn(curY,curM);if(selDay>d.length)selDay=d.length;var day=d[selDay-1],dow=day.dow,cls=dcls(day);
   var h='<div class="dayv">';
